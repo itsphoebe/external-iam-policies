@@ -1,0 +1,51 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowAccountAccess",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${account_id}:root"
+      },
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject", 
+        "s3:DeleteObject"
+      ],
+      "Resource": "${bucket_arn}/*"
+    },
+    {
+      "Sid": "AllowAccountListBucket",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${account_id}:root"
+      },
+      "Action": "s3:ListBucket",
+      "Resource": "${bucket_arn}"
+    }%{ if enable_public_read },
+    {
+      "Sid": "AllowPublicRead",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "${bucket_arn}/*"
+    }%{ endif }%{ if enable_cross_account_access && length(trusted_account_ids) > 0 },
+    {
+      "Sid": "AllowCrossAccountAccess", 
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [%{ for idx, account_id in trusted_account_ids }
+          "arn:aws:iam::${account_id}:root"%{ if idx < length(trusted_account_ids) - 1 },%{ endif }%{ endfor }
+        ]
+      },
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "${bucket_arn}",
+        "${bucket_arn}/*"
+      ]
+    }%{ endif }
+  ]
+}
