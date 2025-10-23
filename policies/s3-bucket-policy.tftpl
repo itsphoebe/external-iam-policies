@@ -84,6 +84,6 @@ ${jsonencode({
           Resource = "${bucket_arn}/logs/*"
         }
       ] : []
-    ) : []
+    ) : concat([])  # <-- CHANGE: Use concat([]) instead of []
   )
 })}
