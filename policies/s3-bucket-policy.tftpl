@@ -47,39 +47,43 @@ ${jsonencode({
       }
     ] : [],
     
-    # CONDITIONAL FEATURE: Logging access for audit trails
-    enable_logging ? [
-      {
-        Sid = "AllowLogging"
-        Effect = "Allow"
-        Principal = "arn:aws:iam::${account_id}:root"
-        Action = "s3:PutObject"
-        Resource = "${bucket_arn}/*"
-      }
-    ] : [],
-    
-    # CONDITIONAL FEATURE: Enhanced logging with optional encryption requirements
-    enable_logging ? [
-      {
-        Sid = "AllowLogging"
-        Effect = "Allow"
-        Principal = "arn:aws:iam::${account_id}:root"
-        Action = "s3:PutObject"
-        Resource = "${bucket_arn}/*"
-      },
+    # CONDITIONAL FEATURE: Logging with multiple sub-features
+    enable_logging ? concat(
+      [
+        # Base logging statement (always included when logging is enabled)
+        {
+          Sid = "AllowLogging"
+          Effect = "Allow"
+          Principal = "arn:aws:iam::${account_id}:root"
+          Action = "s3:PutObject"
+          Resource = "${bucket_arn}/*"
+        }
+      ],
       # NESTED: Only add encryption requirement if logging is enabled AND encryption is required
-      enable_logging && require_encryption_for_logs ? {
-        Sid = "RequireEncryptionForLogs"
-        Effect = "Deny"
-        Principal = "*"
-        Action = "s3:PutObject"
-        Resource = "${bucket_arn}/logs/*"
-        Condition = {
-          StringNotEquals = {
-            "s3:x-amz-server-side-encryption" = "AES256"
+      require_encryption_for_logs ? [
+        {
+          Sid = "RequireEncryptionForLogs"
+          Effect = "Deny"
+          Principal = "*"
+          Action = "s3:PutObject"
+          Resource = "${bucket_arn}/logs/*"
+          Condition = {
+            StringNotEquals = {
+              "s3:x-amz-server-side-encryption" = "AES256"
+            }
           }
         }
-      } : {}
-    ] : []
+      ] : [],
+      # NESTED: Only add log retention policy if logging is enabled AND retention is required
+      enable_log_retention ? [
+        {
+          Sid = "AllowLogRetentionManagement"
+          Effect = "Allow"
+          Principal = "arn:aws:iam::${account_id}:root"
+          Action = ["s3:DeleteObject", "s3:GetObjectVersion"]
+          Resource = "${bucket_arn}/logs/*"
+        }
+      ] : []
+    ) : []
   )
 })}
