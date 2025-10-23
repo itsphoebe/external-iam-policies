@@ -24,7 +24,7 @@ ${jsonencode({
     ],
     
     # CONDITIONAL FEATURE: Public read access (disabled per organization policy)
-    try(enable_public_read, false) ? [
+    enable_public_read ? [
       {
         Sid = "AllowPublicRead"
         Effect = "Allow"
@@ -35,7 +35,7 @@ ${jsonencode({
     ] : [],
     
     # CONDITIONAL FEATURE: Cross-account access for trusted AWS accounts
-    try(enable_cross_account_access, false) && length(try(trusted_account_ids, [])) > 0 ? [
+    enable_cross_account_access && length(trusted_account_ids) > 0 ? [
       {
         Sid = "AllowCrossAccountAccess"
         Effect = "Allow"
@@ -48,7 +48,7 @@ ${jsonencode({
     ] : [],
     
     # CONDITIONAL FEATURE: Logging access for audit trails
-    try(enable_logging, false) ? [
+    enable_logging ? [
       {
         Sid = "AllowLogging"
         Effect = "Allow"
@@ -56,6 +56,30 @@ ${jsonencode({
         Action = "s3:PutObject"
         Resource = "${bucket_arn}/*"
       }
+    ] : [],
+    
+    # CONDITIONAL FEATURE: Enhanced logging with optional encryption requirements
+    enable_logging ? [
+      {
+        Sid = "AllowLogging"
+        Effect = "Allow"
+        Principal = "arn:aws:iam::${account_id}:root"
+        Action = "s3:PutObject"
+        Resource = "${bucket_arn}/*"
+      },
+      # NESTED: Only add encryption requirement if logging is enabled AND encryption is required
+      enable_logging && require_encryption_for_logs ? {
+        Sid = "RequireEncryptionForLogs"
+        Effect = "Deny"
+        Principal = "*"
+        Action = "s3:PutObject"
+        Resource = "${bucket_arn}/logs/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = "AES256"
+          }
+        }
+      } : {}
     ] : []
   )
 })}
