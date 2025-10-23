@@ -47,43 +47,31 @@ ${jsonencode({
       }
     ] : [],
     
-    # CONDITIONAL FEATURE: Logging with multiple sub-features
-    enable_logging ? concat(
-      [
-        # Base logging statement (always included when logging is enabled)
-        {
-          Sid = "AllowLogging"
-          Effect = "Allow"
-          Principal = "arn:aws:iam::${account_id}:root"
-          Action = "s3:PutObject"
-          Resource = "${bucket_arn}/*"
-        }
-      ],
-      # NESTED: Only add encryption requirement if logging is enabled AND encryption is required
-      require_encryption_for_logs ? [
-        {
-          Sid = "RequireEncryptionForLogs"
-          Effect = "Deny"
-          Principal = "*"
-          Action = "s3:PutObject"
-          Resource = "${bucket_arn}/logs/*"
-          Condition = {
-            StringNotEquals = {
-              "s3:x-amz-server-side-encryption" = "AES256"
-            }
+    # CONDITIONAL FEATURE: Basic logging access
+    enable_logging ? [
+      {
+        Sid = "AllowLogging"
+        Effect = "Allow"
+        Principal = "arn:aws:iam::${account_id}:root"
+        Action = "s3:PutObject"
+        Resource = "${bucket_arn}/*"
+      }
+    ] : [],
+    
+    # CONDITIONAL FEATURE: Encryption requirement for logs
+    enable_logging && require_encryption_for_logs ? [
+      {
+        Sid = "RequireEncryptionForLogs"
+        Effect = "Deny"
+        Principal = "*"
+        Action = "s3:PutObject"
+        Resource = "${bucket_arn}/logs/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = "AES256"
           }
         }
-      ] : [],
-      # NESTED: Only add log retention policy if logging is enabled AND retention is required
-      enable_log_retention ? [
-        {
-          Sid = "AllowLogRetentionManagement"
-          Effect = "Allow"
-          Principal = "arn:aws:iam::${account_id}:root"
-          Action = ["s3:DeleteObject", "s3:GetObjectVersion"]
-          Resource = "${bucket_arn}/logs/*"
-        }
-      ] : []
-    ) : concat([])  # <-- CHANGE: Use concat([]) instead of []
+      }
+    ] : []
   )
 })}
