@@ -2,6 +2,7 @@ ${jsonencode({
   Version = "2012-10-17"
   Statement = concat(
     [
+      # Always allow the bucket owner account full access
       {
         Sid = "AllowAccountAccess"
         Effect = "Allow"
@@ -21,7 +22,9 @@ ${jsonencode({
         Resource = bucket_arn
       }
     ],
-    enable_public_read ? [
+    
+    # CONDITIONAL FEATURE: Public read access (disabled per organization policy)
+    try(enable_public_read, false) ? [
       {
         Sid = "AllowPublicRead"
         Effect = "Allow"
@@ -30,7 +33,9 @@ ${jsonencode({
         Resource = "${bucket_arn}/*"
       }
     ] : [],
-    enable_cross_account_access && length(trusted_account_ids) > 0 ? [
+    
+    # CONDITIONAL FEATURE: Cross-account access for trusted AWS accounts
+    try(enable_cross_account_access, false) && length(try(trusted_account_ids, [])) > 0 ? [
       {
         Sid = "AllowCrossAccountAccess"
         Effect = "Allow"
@@ -39,6 +44,17 @@ ${jsonencode({
         }
         Action = ["s3:GetObject", "s3:ListBucket"]
         Resource = [bucket_arn, "${bucket_arn}/*"]
+      }
+    ] : [],
+    
+    # CONDITIONAL FEATURE: Logging access for audit trails
+    try(enable_logging, false) ? [
+      {
+        Sid = "AllowLogging"
+        Effect = "Allow"
+        Principal = "arn:aws:iam::${account_id}:root"
+        Action = "s3:PutObject"
+        Resource = "${bucket_arn}/*"
       }
     ] : []
   )
